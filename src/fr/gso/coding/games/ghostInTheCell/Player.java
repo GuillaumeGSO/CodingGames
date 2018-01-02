@@ -3,12 +3,29 @@ package fr.gso.coding.games.ghostInTheCell;
 import java.util.*;
 import java.io.*;
 import java.math.*;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 
 /**
- * Auto-generated code below aims at helping you parse the standard input
- * according to the problem statement. Ligue de bronze 880
+ * Auto-generated code below aims at helping you parse
+ * the standard input according to the problem statement.
+ * Refactoring Java 8
  **/
 class Player {
+
+    public static final boolean LOG = true;
+    public static final int margin = 5;
+    public static int idTargetMyFirstbomb = -1;
+
+    public static Map<Integer, List<Factory>> distances = new HashMap<Integer, List<Factory>>();
+
+    public static void log(String str) {
+        if (LOG) {
+            System.err.println(str);
+        }
+    }
 
     public static void main(String args[]) {
 
@@ -27,16 +44,22 @@ class Player {
             if (map.get(factory2) == null) {
                 map.put(factory2, new Factory(factory2));
             }
-            // adding neighbours with their distances
-            map.get(factory1).distances.put(map.get(factory2), distance);
-            map.get(factory2).distances.put(map.get(factory1), distance);
+            //TODO faire un tableau séparé qui contient les distances : ça ne change jamais !
+            if (distances.get(distance) == null) {
+                distances.put(distance, new ArrayList<Factory>());
+            }
+            distances.get(distance).add(map.get(factory2));
+
+            if (distances.get(distance) == null) {
+                distances.put(distance, new ArrayList<Factory>());
+            }
+            distances.get(distance).add(map.get(factory1));
+
 
         }
-
         // game loop
         while (true) {
-            int entityCount = in.nextInt(); // the number of entities (e.g.
-                                            // factories and troops)
+            int entityCount = in.nextInt(); // the number of entities (e.g. factories and troops)
             for (int i = 0; i < entityCount; i++) {
                 int entityId = in.nextInt();
                 String entityType = in.next();
@@ -51,83 +74,109 @@ class Player {
                 } else if (entityType.equals("TROOPS")) {
                     map = updateMapTroops(map, arg1, arg2, arg3, arg4, arg5);
                 } else if (entityType.equals("BOMB")) {
-                    // TODO voir ce que j'en fait
+                    if (arg1 == 1) {
+                        idTargetMyFirstbomb = arg3;
+                    }
                 }
             }
 
-            // Write an action using System.out.println()
-            // To debug: System.err.println("Debug messages...");
-
-            // Any valid action, such as "WAIT" or
-            // "MOVE source destination cyborgs"
             System.out.println(chooseAction(map));
         }
     }
 
     private static String chooseAction(Map<Integer, Factory> map) {
+        log("-----Nouveau tour--------");
+        int remaningBomb = 2;
 
-        int nbBomb = 2;
-        // regle 1 : si j'ai une usine qui contient des cyborgs mais qui ne
-        // produit pas,
-        // j'envoi la totalité -1 sur l'usine la plus proche ou la plus faible
-        // qui produit le plus
-        // et qui n'est pas à moi.
-        List<String> lstActions = new ArrayList<String>();
+        //TODO : faire un double classement
+        //Comparator<Person> comparator = comparingInt(Person::getAge).thenComparing(Person::getName);
 
-        // Premier essai : si j'ai beaucoup de Cyborg sur une usine qui ne
-        // produit pas
-        // Je les déplace dans une usine proche qui produit,
-        // sinon j'attaque une usine adverse faible et proche
-        Factory f1 = findNonProductive(map);
-        // System.err.println("NonProductive:" + f1);
-        if (f1 != null) {
-            // System.err.println("NonProductiveSource:" + f1);
-            Factory fCible = findBestProductiveNeutralTarget(map, f1);
+        //J'incremente une usine à moi qui contient suffisamment de cyborg
+        List<Factory> listToIncrement = map.values().stream()
+                .filter(o -> o.owner == 1)
+                .filter(f -> f.nbCyborg >= 10)
+                .filter(p -> p.production < 3)
+                .sorted(Comparator.comparing(Factory::getScore))
+                .collect(Collectors.toList());
+        if (listToIncrement != null && !listToIncrement.isEmpty()) {
+            log("*****INC******" + listToIncrement.get(0));
+            listToIncrement.get(0).production++;
+            return "INC " + listToIncrement.get(0).id;
+        }
+
+        List<Factory> factoryList = map.values().stream()
+                .filter(o -> o.owner == 1)
+                .filter(p -> p.production == 0)
+                .filter(c -> c.nbCyborg > 10)
+                .sorted(Comparator.comparing(Factory::getScore).reversed())
+                .collect(Collectors.toList());
+        if (factoryList != null && !factoryList.isEmpty()) {
+            Factory fSource = factoryList.get(0);
+            log("NonProductiveSource:" + fSource);
+
+            //La cible est une cible neutre et proche, on va tenter avec une grosse production
+            List<Factory> factoryListCible = map.values().stream()
+                    .filter(o -> o.owner == 0)
+                    .filter(p -> p.production > 0)
+                    .collect(Collectors.toList());
+            Factory fCible = pickClosest(fSource, factoryListCible);
             if (fCible != null) {
-                // System.err.println("CibleNeutreFIRST:" + fCible);
-                return "MSG Droit vers:" + f1.id + ";MOVE " + f1.id + " " + fCible.id + " " + (f1.nbCyborg - 1);
+                return "MSG transfert vers:" + fCible.id + ";MOVE " + fSource.id + " " + fCible.id + " " + (fSource.nbCyborg - 1);
             } else {
-                fCible = findWeakestAdverseTarget(map, f1);
+                List<Factory> factoryListAdverse = map.values().stream()
+                        .filter(o -> o.owner == -1)
+                        .filter(p -> p.production > 1)
+                        .filter(c -> c.nbCyborg < fSource.nbCyborg)
+                        .collect(Collectors.toList());
+                fCible = pickClosest(fSource, factoryListAdverse);
                 if (fCible != null) {
-                    // System.err.println("CibleAdverseFIRST:" + fCible);
-                    return "MOVE " + f1.id + " " + fCible.id + " " + Integer.valueOf(fCible.nbCyborg + 1);
-                }
-            }
-        } else {
-            // On n'a pas trouvé d'usine non productive contenant des cyborgs.
-            // On va partir de la plus grosse usine et on va attaquer une usine
-            // neutre, qui produit le plus possible et la plus pres possible
-            List<Factory> lstStrong = findFactoriesBestProductive(map);
-            // System.err.println("Liste Strong:" + lstStrong.size());
-            int dispatch = lstStrong.size();
-            // System.err.println();
-            for (Factory f : lstStrong) {
-                Factory fCible = findBestProductiveNeutralTarget(map, f);
-                if (fCible != null) {
-                    System.err.println("CibleNeutre:" + fCible);
-                    // TODO : calculer le nombre a envoyer en fonction des
-                    // troupes adverses en train d'arriver
-                    // pour ne pas se retrouver à poil.
-                    lstActions.add("MOVE " + f.id + " " + fCible.id + " " + (f.nbCyborg - f.incomingBadCyborg));
-                    // Retirer du potentiel la valeur qu'on va envoyer
-                    // f.nbCyborg -= 5;
-                } else {
-                    System.err.println("PasDeCibleNeutre:" + fCible);
-                    // TODO transformer pour retourner la cible la plus faible
-                    // et la plus proche
-                    fCible = findWeakestAdverseTarget(map, f);
-
-                    if (fCible != null) {
-                        // System.err.println("CibleAdverse:" + fCible);
-                        lstActions.add("MOVE " + f.id + " " + fCible.id + " " + (f.nbCyborg - f.incomingBadCyborg));
-                        if (nbBomb > 0) {
-                            lstActions.add("BOMB " + f.id + " " + fCible.id);
-                            nbBomb--;
-                        }
-                    }
+                    return "MSG transfert vers:" + factoryListAdverse.get(0).id + ";MOVE " + fSource.id + " " + factoryListAdverse.get(0).id + " " + (fSource.nbCyborg - 1);
                 }
             }
         }
+
+        //On va tenter une action par usine de la liste
+        List<String> lstActions = new ArrayList<String>();
+        //On va partir de la plus grosse usine et on va attaquer une usine
+        //neutre, qui produit le plus possible et la plus pres possible
+        List<Factory> lstStrong = map.values().stream()
+                .filter(o -> o.owner == 1)
+                .filter(p -> p.production > 0)
+                .sorted(Comparator.comparing(Factory::getScore).reversed())
+                .collect(Collectors.toList());
+
+        for (Factory fSource : lstStrong) {
+            log("Pour la factory:" + fSource);
+
+            List<Factory> listCible = map.values().stream()
+                    .filter(o -> o.owner != 1)
+                    .filter(c -> c.nbCyborg < fSource.nbCyborg)
+                    .sorted(Comparator.comparing(Factory::getScore).reversed())
+                    .collect(Collectors.toList());
+
+            Factory fCible = pickClosest(fSource, listCible);
+            if (fCible != null) {
+                int nb = (fSource.nbCyborg > margin ? fCible.nbCyborg + 1 : fSource.production);
+                lstActions.add("MSG Attaque cible:" + fCible.id + ";MOVE " + fSource.id + " " + fCible.id + " " + nb);
+            }
+            List<Factory> listToBomb = map.values().stream()
+                    .filter(o -> o.owner == -1)
+                    .filter(c -> c.nbCyborg < fSource.nbCyborg)
+                    .filter(p -> p.production > 1)
+                    .filter(i -> i.id != idTargetMyFirstbomb)
+                    .sorted(Comparator.comparing(Factory::getScore).reversed())
+                    .collect(Collectors.toList());
+
+            Factory fToBomb = pickClosest(fSource, listToBomb);
+            if (fToBomb != null && remaningBomb > 0) {
+                int nb = fToBomb.nbCyborg + 1;
+                lstActions.add("BOMB " + fSource.id + " " + fToBomb.id);
+                lstActions.add("MOVE " + fSource.id + " " + fToBomb.id + " " + nb);
+                idTargetMyFirstbomb = fToBomb.id;
+                remaningBomb--;
+            }
+        }
+
 
         if (lstActions.size() > 0) {
             StringBuilder sb = new StringBuilder();
@@ -142,207 +191,94 @@ class Player {
             }
             return sb.toString();
         }
-        // TODO si j'ai d'autres à faire (et pour viser le ko) attaquer des
-        // bases de l'adversaire qui ne produisent pas
+        //TODO si j'ai d'autres à faire (et pour viser le ko) attaquer des bases de l'adversaire qui ne produisent pas
         return ("WAIT");
     }
 
-    private static Factory findNonProductive(Map<Integer, Factory> map) {
-        List<Factory> list = new ArrayList<Factory>();
-        for (Factory f : map.values()) {
-            if (f.isMine != null && f.isMine && f.production == 0) {
-                list.add(f);
-            }
+    private static Factory pickClosest(Factory fSource, List<Factory> lstFactory) {
+        if (lstFactory == null) {
+            return null;
         }
-        // On trouve celle qui a le plus de cyborg
-        if (!list.isEmpty()) {
-            list.sort(new FactoryCyborgComparator());
-            Factory result = list.get(0);
-            return result.nbCyborg > 0 ? result : null;
-        }
-        return null;
-
-    }
-
-    private static List<Factory> findFactoriesBestProductive(Map<Integer, Factory> map) {
-        List<Factory> result = new ArrayList<Factory>();
-        for (Factory f : map.values()) {
-            if (f.isMine != null && f.isMine) {
-                result.add(f);
-            }
-        }
-        // Avoir les plus productives au debut
-        result.sort(new FactoryProductionComparator());
-        Collections.reverse(result);
-
-        // TODO utiliser les streams Java 8
-        // List<Factory> neutrals =
-        // factories.values().stream()
-        // .filter(Factory::isNeutral)
-        // .filter(Factory::isActive)
-        // .sorted(Comparator.comparing(Factory::getProduction).reversed())
-        // .collect(Collectors.toList());
-        // launchNeutralFight(neutrals);
-
-        return result;
-    }
-
-    /**
-     * Retour l'id d'une usine neutre, qui produit le plus possible et qui est
-     * attaquable en une fois et pas trop loin
-     **/
-    private static Factory findBestProductiveNeutralTarget(Map<Integer, Factory> map, Factory factorySource) {
-        // TODO : si plusieurs résultat, prendre la plus proche
-        Map<Integer, List<Factory>> mapDistances = new HashMap<Integer, List<Factory>>();
-
-        // System.err.println("Source:" + factorySource);
-
-        for (Factory f : map.values()) {
-            int potentialNbCyborg = f.nbCyborg;// +f.incomingBadCyborg-f.incomingGoodCyborg;
-            if (f.isMine == null && potentialNbCyborg < factorySource.nbCyborg && f.production > 0) {
-                // System.err.println("Eligible:" + f);
-                int distance = f.distances.get(factorySource);
-                if (mapDistances.get(distance) == null) {
-                    mapDistances.put(distance, new ArrayList<Factory>());
+        for (int i = 0; i <= 20; i++) {
+            List<Factory> lstDistances = distances.get(i);
+            if (lstDistances != null && !lstDistances.isEmpty()) {
+                for (Factory iFactory : lstDistances) {
+                    if (lstFactory.contains(iFactory)) {
+                        return iFactory;
+                    }
                 }
-                mapDistances.get(distance).add(f);
             }
         }
-        // Extraction de la cible la plus interessante : la plus forte parmi les
-        // plus près
-        for (int i = 1; i <= 20; i++) {
-            // System.err.println("Distance recherche:" + i);
-            List<Factory> lstTemp = mapDistances.get(i);
-            if (lstTemp != null && !lstTemp.isEmpty()) {
-                // Tri en prenant le nombre la production la plus forte
-                lstTemp.sort(new FactoryProductionComparator());
-                Collections.reverse(lstTemp);
-                // System.err.println("Usine neutre attaquée :" +
-                // lstTemp.get(0));
-                return lstTemp.get(0);
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Retourne l'id d'une usine adverse, qui produit le plus possible est qui
-     * est attaquable en une fois
-     **/
-    private static Factory findWeakestAdverseTarget(Map<Integer, Factory> map, Factory factorySource) {
-        Map<Integer, List<Factory>> mapDistances = new HashMap<Integer, List<Factory>>();
-        // TODO : si plusieurs résultat, prendre la plus proche
-        Factory result = null;
-        for (Factory f : map.values()) {
-            if (f.isMine != null && !f.isMine && f.production > 0 && f.nbCyborg < factorySource.nbCyborg) {
-                // System.err.println("Eligible:" + f);
-                int distance = f.distances.get(factorySource);
-                if (mapDistances.get(distance) == null) {
-                    mapDistances.put(distance, new ArrayList<Factory>());
-                }
-                mapDistances.get(distance).add(f);
-            }
-        }
-        // Extraction de la cible la plus interessante
-        for (int i = 1; i <= 20; i++) {
-            // System.err.println("Distance recherche:" + i);
-            List<Factory> lstTemp = mapDistances.get(i);
-            if (lstTemp != null && !lstTemp.isEmpty()) {
-                // Tri en prenant le nombre de cyborg le plus faible
-                lstTemp.sort(new FactoryCyborgComparator());
-                // System.err.println("Usine adverse attaquée :" +
-                // lstTemp.get(0));
-                return lstTemp.get(0);
-            }
-        }
-        // System.err.println("MSG " + "Usines neutres:" + lstResult.size());
         return null;
     }
 
     private static Map<Integer, Factory> updateMapFactory(Map<Integer, Factory> map, int idFactory, int owner, int nbCyborg, int production) {
         Factory f = map.get(idFactory);
-        if (owner == 1)
-            f.isMine = true;
-        if (owner == -1)
-            f.isMine = false;
-        if (owner == 0)
-            f.isMine = null;
+        f.owner = owner;
         f.nbCyborg = nbCyborg;
         f.production = production;
-        // System.err.println("Maj Factory:" + f);
+        f.score = nbCyborg * production;
         return map;
     }
 
-    private static Map<Integer, Factory> updateMapTroops(Map<Integer, Factory> map, int owner, int idFactoryDep, int idFactoryArr,
-        int nbCyborg, int timeToArrival) {
-        // TODO mettre à jour les cyborgs
-        boolean myCyborgs = false;
-        if (owner == 1)
-            myCyborgs = true;
-        Factory fa = map.get(idFactoryArr);
-        if (myCyborgs) {
-            fa.incomingGoodCyborg = nbCyborg;
-        } else {
-            // System.err.println("Maj Troop incBad:" + nbCyborg + fa);
-            fa.incomingBadCyborg = nbCyborg;
-        }
-        Factory fd = map.get(idFactoryDep);
+    private static Map<Integer, Factory> updateMapTroops(Map<Integer, Factory> map, int owner, int idFactoryDep, int idFactoryArr, int nbIncomingCyborg, int timeToArrival) {
 
-        // System.err.println("Maj Troop arr:" + fa);
+        Factory fArr = map.get(idFactoryArr);
+
+        if (owner == fArr.owner) {
+            //Des cyborgs appartenant à l'usine sont en route
+            if (fArr.owner == 1) {
+                //Des cyborgs à moi arrivent, mon score de valeur augmente
+                fArr.score += nbIncomingCyborg / timeToArrival;
+            } else {
+                //Des cyborgs adverses arrivent, mon score diminue
+                fArr.score -= nbIncomingCyborg / timeToArrival;
+            }
+        } else {
+            //Des cyborgs n'appartenant pas à l'usine sont en route
+            if (fArr.owner == 1) {
+                //Des cyborgs à moi arrivent, ça baisse le potentiel de l'usine adverse
+                fArr.score -= nbIncomingCyborg / timeToArrival;
+            } else {
+                //Des cyborgs adverses arrivent dans l'usine adverse, ça augmente sont potentiel
+                fArr.score += nbIncomingCyborg / timeToArrival;
+            }
+
+        }
+
         return map;
     }
 }
 
 class Factory {
     int id;
-
     Integer production;
-
-    Boolean isMine = null;
-
+    Integer owner;
     Integer nbCyborg;
-
     int score;
-
-    int incomingGoodCyborg;
-
-    int incomingBadCyborg;
-
-    Map<Factory, Integer> distances = new HashMap<Factory, Integer>();
 
     public Factory(int id) {
         this.id = id;
     }
 
+    public Integer getProduction() {
+        return this.production;
+    }
+
+    public Integer getCyborgs() {
+        return this.nbCyborg;
+    }
+
+    public Integer getScore() {
+        return this.score;
+    }
+
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(this.id).append(" prd:").append(this.production).append(" mine:").append(this.isMine);
-        sb.append(" nbCy:").append(this.nbCyborg).append(" incBad:").append(incomingBadCyborg).append(" incGood:").append(
-            incomingGoodCyborg);
-        sb.append(" ---> ");
-        for (Factory n : this.distances.keySet()) {
-            sb.append("    ").append(n.id).append(" dist:").append(this.distances.get(n));
-        }
+        sb.append(this.id)
+                .append(" prd:").append(this.production)
+                .append(" nbCy:").append(this.nbCyborg);
 
         return sb.toString();
     }
 }
-
-class FactoryProductionComparator implements Comparator<Factory> {
-    public int compare(Factory f1, Factory f2) {
-        return f1.production - f2.production;
-    }
-}
-
-class FactoryCyborgComparator implements Comparator<Factory> {
-    public int compare(Factory f1, Factory f2) {
-        return f1.nbCyborg - f2.nbCyborg;
-    }
-}
-/**
- * class FactoryProductionCyborgComparator implements Comparator<Factory> {
- * public int compare(Factory f1, Factory f2) { int c =
- * f1.production-f2.production; if (c == 0) { c = f1.cyborgs-f2.cyborgs; }
- * return c; } }
- **/
-
