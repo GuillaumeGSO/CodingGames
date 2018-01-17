@@ -1,6 +1,5 @@
 package fr.gso.coding.games.ghostInTheCell;
 
-
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -10,39 +9,34 @@ import java.util.stream.Collectors;
  **/
 class Player {
 
-    private static final boolean LOG_ENABLED = true;
+    public static final boolean LOG_ENABLED = true;
 
-    private static final int MARGIN = 6;
-    
-    private static int NB_FACTORY = 0;
+    public static final int MARGIN = 6;
 
-    private static final int AMOUNT_INCREMENT = 10;
+    public static final int AMOUNT_INCREMENT = 10;
 
     private static final int DIST_MINI_ATTACK = 8;
 
     private static final int NB_INCREMENT_MAX = 5;
 
-    private static final String MOVE = "MOVE ";
-    
-    private static final String WAIT = "WAIT";
-    
-
-    private static final Map<Integer, Factory> MAP = new HashMap<>();
-
-    private static final Map<Factory, Map<Integer, List<Factory>>> DISTANCES = new HashMap<>();
-
     private static int NB_INCREMENT = 0;
 
-    private static int ID_FIRST_BOMB = -1;
+    private static final String MOVE = "MOVE ";
 
-    private static int TOUR = 0;
+    public static final Map<Integer, Factory> MAP = new HashMap<>();
 
-    private static int REMAININGBOMB = 2;
+    public static final Map<Factory, Map<Integer, List<Factory>>> DISTANCES = new HashMap<>();
+
+    public static int ID_FIRST_BOMB = -1;
+
+    public static int TOUR = 0;
+
+    public static int REMAININGBOMB = 2;
 
     public static void main(String args[]) {
 
         Scanner in = new Scanner(System.in);
-        NB_FACTORY = in.nextInt(); // the number of factories
+        int factoryCount = in.nextInt(); // the number of factories
 
         int linkCount = in.nextInt(); // the number of links between factories
         for (int i = 0; i < linkCount; i++) {
@@ -50,158 +44,91 @@ class Player {
             int idf2 = in.nextInt();
             int distance = in.nextInt();
 
-            alimenteMaps(idf1, idf2, distance);
+            alimenteMaps(idf1, idf2, distance, factoryCount);
 
         }
 
-        gameLoop(in);
+        boolean leaveMeAlone = true;
+
+        // game loop
+        while (leaveMeAlone) {
+            int entityCount = in.nextInt();
+            //displayAllFactories("BeforeUpdate");
+            for (int i = 0; i < entityCount; i++) {
+                int entityId = in.nextInt();
+                String entityType = in.next();
+                int arg1 = in.nextInt();
+                int arg2 = in.nextInt();
+                int arg3 = in.nextInt();
+                int arg4 = in.nextInt();
+                int arg5 = in.nextInt();
+
+                if (entityType.equals("FACTORY")) {
+                    updateFactory(entityId, arg1, arg2, arg3);
+                } else if (entityType.equals("TROOP")) {
+                    updateTroops(arg1, arg2, arg3, arg4, arg5);
+                } else if (entityType.equals("BOMB")) {
+                    if (arg1 == 1) {
+                        ID_FIRST_BOMB = arg3;
+                    }
+                }
+            }
+
+            //displayAllFactories("AfterUpdate");
+            System.out.println(chooseAction());
+        }
     }
-    
-    private static String calculStrategy() {
-        
-        log("-----Nouveau tour-------- " + ++TOUR);
-        if (TOUR == 1) {
-            return strategyMoveEnMasse();
+
+    private static void displayAllFactories(String msg) {
+        log(msg);
+        for (Factory f : MAP.values()) {
+            log(f.toString());
         }
-        if (NB_FACTORY > 10) {
-            return strategyNombreuse();
-        }
-        
-        return strategyDefault();
-        
     }
-    
-    private static String strategyMoveEnMasse() {
-         // Recherche d'une source non productive pour déplacment en masse
-        String moveMasse = tryMoveEnMasse();
-        if (moveMasse != null) {
-            return moveMasse;
-        }
-        return null;
+
+    private static void alimenteMaps(int idf1, int idf2, int distance, int factoryCount) {
+
+        //Effectue le get en s'assurant de la crÈation si absent
+        Factory f1 = MAP.computeIfAbsent(idf1,  k-> new Factory(idf1));
+        Factory f2 = MAP.computeIfAbsent(idf2,  k-> new Factory(idf2));
+
+        // Assure les inits en mÍme temps que l'alimentation...
+        DISTANCES.computeIfAbsent(f1, k->new HashMap<>()).computeIfAbsent(distance, k-> new ArrayList<>(factoryCount)).add(f2);
+        DISTANCES.computeIfAbsent(f2, k->new HashMap<>()).computeIfAbsent(distance, k-> new ArrayList<>(factoryCount)).add(f1);
     }
-    
-    private static String strategyNombreuse() {
-        log("strategyNombreuse");
-        
-         String moveMasse = tryMoveEnMasse();
-        if (moveMasse != null) {
-            return moveMasse;
-        }
-        
-        List<String> lstActions = new ArrayList<>();
-        
-        List<Factory> lstStrong = MAP.values().stream().filter(o -> o.owner == 1)
-        // .filter(p -> p.production > 0)
-        // .sorted(Comparator.comparing(Factory::getCyborgs).reversed())
-            .collect(Collectors.toList());
 
-        for (Factory fSource : lstStrong) {
-
-            log(fSource.toString());
-            
-            String attackNeutral = attackNeutral(fSource, 3);
-            if (attackNeutral != null) {
-                lstActions.add(attackNeutral);
-                // continue;
-                // return getActions(lstActions);
-            }
-
-            String attackEnemy = attackEnemy(fSource);
-            if (attackEnemy != null) {
-                lstActions.add(attackEnemy);
-                // continue;
-                // return getActions(lstActions);
-            }
-
-
-            
-            String reinforce = reinforce(fSource);
-            if (reinforce != null) {
-                //lstActions.add(reinforce);
-                // continue;
-                // return getActions(lstActions);
-            }
-            String bombing = tryToBomb(fSource);
-            if (bombing != null) {
-                lstActions.add(bombing);
-                // continue;
-                // return getActions(lstActions);
-            }
-
-        }
-
-        return getActions(lstActions);
-
+    private static void updateFactory(int idFactory, int owner, int nbCyborg, int production) {
+        Factory f = MAP.get(idFactory);
+        f.owner = owner;
+        f.nbCyborg = nbCyborg;
+        f.potentialCyborg = nbCyborg;
+        f.production = production;
     }
-        
-    
-
-    private static String strategyDefault() {
 
 
-        List<String> lstActions = new ArrayList<>();
-       
-        // J'incremente une usine à moi qui contient suffisamment de cyborg
-        String incremente = tryIncremente();
-        if (incremente != null) {
-            //lstActions.add(incremente);
-            // return incremente;
+    private static void updateTroops(int owner, int idFactoryDep, int idFactoryArr, int nbIncomingCyborg, int timeToArrival) {
+
+        Factory fArr = MAP.get(idFactoryArr);
+
+        if (timeToArrival <= DIST_MINI_ATTACK) {
+            if (owner == fArr.owner) {
+                fArr.potentialCyborg += nbIncomingCyborg;// / timeToArrival;
+            } else {
+                fArr.potentialCyborg -= nbIncomingCyborg;// / timeToArrival;
+            }
         }
-
-        // On va partir de la plus grosse usine et on va attaquer une usine
-        // neutre, qui produit le plus possible et la plus pres possible
-        List<Factory> lstStrong = MAP.values().stream().filter(o -> o.owner == 1)
-        // .filter(p -> p.production > 0)
-        // .sorted(Comparator.comparing(Factory::getCyborgs).reversed())
-            .collect(Collectors.toList());
-
-        for (Factory fSource : lstStrong) {
-
-            log(fSource.toString());
-            
-            String attackNeutral = attackNeutral(fSource);
-            if (attackNeutral != null) {
-                lstActions.add(attackNeutral);
-                // continue;
-                // return getActions(lstActions);
-            }
-
-            String attackEnemy = attackEnemy(fSource);
-            if (attackEnemy != null) {
-                lstActions.add(attackEnemy);
-                // continue;
-                // return getActions(lstActions);
-            }
-
-
-            String bombing = tryToBomb(fSource);
-            if (bombing != null) {
-                lstActions.add(bombing);
-                // continue;
-                // return getActions(lstActions);
-            }
-            
-            String reinforce = reinforce(fSource);
-            if (reinforce != null) {
-                //lstActions.add(reinforce);
-                // continue;
-                // return getActions(lstActions);
-            }
-
-        }
-
-        return getActions(lstActions);
-
     }
 
     private static String tryIncremente() {
-        List<Factory> listToIncrement =
-            MAP.values().stream().filter(o -> o.owner == 1).filter(f -> f.nbCyborg >= AMOUNT_INCREMENT).filter(p -> p.production < 3)
+        List<Factory> listToIncrement =MAP.values().stream()
+                .filter(o -> o.owner == 1)
+                .filter(f -> f.nbCyborg >= AMOUNT_INCREMENT)
+                .filter(p -> p.production < 3)
                 .collect(Collectors.toList());
 
         if (listToIncrement != null && !listToIncrement.isEmpty()) {
             Factory fIncr = listToIncrement.get(0);
-            if (fIncr.nbCyborg - AMOUNT_INCREMENT >= fIncr.production && fIncr.potentialCyborg > 0 && NB_INCREMENT < NB_INCREMENT_MAX) {
+            if (fIncr.nbCyborg-AMOUNT_INCREMENT >= fIncr.production && fIncr.potentialCyborg > 0 && NB_INCREMENT < NB_INCREMENT_MAX) {
                 log("*****INC******" + fIncr);
                 fIncr.nbCyborg -= AMOUNT_INCREMENT;
                 fIncr.tourIncremented = TOUR;
@@ -213,58 +140,116 @@ class Player {
     }
 
     private static String tryMoveEnMasse() {
-            
-        List<Factory> factoryListSource = MAP.values().stream()
-            .filter(o -> o.owner == 1)
-            .collect(Collectors.toList());
-            
-        Factory fCible = MAP.get(0);
-            
-        if (factoryListSource != null 
-            && !factoryListSource.isEmpty() 
-            && calcDistance(factoryListSource.get(0), fCible) >= DIST_MINI_ATTACK 
-            && NB_FACTORY > 10) {
-            //La factory n'est pas trop près du zéro, tentative vers 0
-            Factory fSource = factoryListSource.get(0);
-            return MOVE + fSource.id + " " + fCible.id  + " " + fSource.nbCyborg;
+        if (TOUR == 1) {
+            List<Factory> factoryList =MAP.values().stream()
+                    .filter(o -> o.owner == 1)
+                    .collect(Collectors.toList());
+            if (factoryList!=null && factoryList.size()==1 && calcDistance(factoryList.get(0), MAP.get(0)) > DIST_MINI_ATTACK ){
+                return "MOVE " + factoryList.get(0).id + " 0 " + factoryList.get(0).nbCyborg;
+            }
         }
 
-        factoryListSource = MAP.values().stream()
-            .filter(o -> o.owner == 1)
-            .filter(p -> p.production == 0)
-            .collect(Collectors.toList());
-            
-        String result = null;
-        //Si la factory qui contient le plus de cyborg ne produit pas, on incrémente et on migre ailleurs
-        if (factoryListSource != null && !factoryListSource.isEmpty()) {
-            Factory fSource = factoryListSource.get(0);
-            result ="INC " + fSource.id;
-        
-            // La cible est une cible neutre et proche, on va tenter avec une grosse production
-            List<Factory> factoryListCible =MAP.values().stream()
-                .filter(o -> o.owner == 0)
-                .filter(p -> p.production >= 2)
-                //.filter(c -> c.nbCyborg == 0)
-                .sorted(Comparator.comparing(Factory::getCyborgs).reversed())
+        if (TOUR > 5) {
+            return null;
+        }
+
+
+        List<Factory> factoryList = MAP.values().stream()
+                .filter(o -> o.owner == 1)
+                .filter(p -> p.production == 0)
                 .collect(Collectors.toList());
-            
-            log("dfdfd" + factoryListCible.size());
-            fCible = pickClosest(fSource, factoryListCible);
-        
+        if (factoryList != null && factoryList.size()==1) {
+            Factory fSource = factoryList.get(0);
+            log("CandidatEnMasse:" + fSource);
+
+            // La cible est une cible neutre et proche, on va tenter avec une
+            // grosse production
+            List<Factory> factoryListCible =MAP.values().stream()
+                    .filter(o -> o.owner == 0)
+                    .filter(p -> p.production > 1)
+                    .filter(c -> c.nbCyborg < fSource.nbCyborg)
+                    .collect(Collectors.toList());
+
+            Factory fCible = pickClosest(fSource, factoryListCible);
+            log("CibleEnMasse:" + fCible);
             if (fCible != null && calcDistance(fSource, fCible) <= DIST_MINI_ATTACK) {
-                String move = MOVE + fSource.id + " " + fCible.id + " " + (fCible.nbCyborg+1);
-                if (result != null) {
-                 result = result + ";" + move;
-                  return result;
-                }
-            return move;
+                return MOVE + fSource.id + " " + fCible.id + " " + fSource.nbCyborg;
             }
         }
         return null;
     }
 
+    private static String chooseAction() {
+
+        System.err.println("-----Nouveau tour-------- " + TOUR++);
+
+        List<String> lstActions = new ArrayList<>();
+
+        // Recherche d'une source non productive pour dÈplacment en masse
+        String moveMasse = tryMoveEnMasse();
+        if (moveMasse != null) {
+            lstActions.add(moveMasse);
+            //return moveMasse;
+        }
+
+        // J'incremente une usine ‡ moi qui contient suffisamment de cyborg
+        String incremente = tryIncremente();
+        if (incremente != null) {
+            lstActions.add(incremente);
+            //return incremente;
+        }
+
+        // On va partir de la plus grosse usine et on va attaquer une usine
+        // neutre, qui produit le plus possible et la plus pres possible
+        List<Factory> lstStrong =MAP.values().stream()
+                .filter(o -> o.owner == 1)
+                //.filter(p -> p.production > 0)
+                //.sorted(Comparator.comparing(Factory::getCyborgs).reversed())
+                .collect(Collectors.toList());
+
+
+        for (Factory fSource : lstStrong) {
+
+            log(fSource.toString());
+
+            String attackEnemy = attackEnemy(fSource);
+            if (attackEnemy != null) {
+                lstActions.add(attackEnemy);
+                //continue;
+                // return getActions(lstActions);
+            }
+
+
+            String attackNeutral = attackNeutral(fSource);
+            if (attackNeutral != null) {
+                lstActions.add(attackNeutral);
+                //continue;
+                //return getActions(lstActions);
+            }
+
+            String reinforce = reinforce(fSource);
+            if (reinforce != null) {
+                lstActions.add(reinforce);
+                //continue;
+                //return getActions(lstActions);
+            }
+
+            String bombing = tryToBomb(fSource);
+            if (bombing != null) {
+                lstActions.add(bombing);
+                //continue;
+                //return getActions(lstActions);
+            }
+
+
+        }
+
+        return getActions(lstActions);
+
+    }
+
     private static String getActions(List<String> lstActions) {
-        if (lstActions != null && lstActions.size() > 0) {
+        if (lstActions!=null && lstActions.size() > 0) {
             StringBuilder sb = new StringBuilder();
             boolean start = true;
             for (String s : lstActions) {
@@ -284,8 +269,8 @@ class Player {
 
         int nb = fSource.production;
 
-        for (int i = nb; i < fSource.nbCyborg; i++) {
-            if (fSource.potentialCyborg >= fSource.nbCyborg && fSource.nbCyborg - nb > MARGIN) {
+        for (int i = nb ; i < fSource.nbCyborg ; i++) {
+            if (fSource.potentialCyborg >= fSource.nbCyborg && fSource.nbCyborg-nb > MARGIN) {
                 log(i + ":" + fSource.toString());
                 nb = i;
             }
@@ -295,37 +280,24 @@ class Player {
     }
 
     private static String attackNeutral(Factory fSource) {
-        
-       return attackNeutral(fSource, -1);
-    }
-    
-    private static String attackNeutral(Factory fSource, int max) {
-        
         List<Factory> listCible = MAP.values().stream()
-            .filter(o -> o.owner == 0)
-            .filter(p -> p.production > 0)
-            .sorted(Comparator.comparing(Factory::getCyborgs))
-            .collect(Collectors.toList());
-        
+                .filter(o -> o.owner == 0)
+                .collect(Collectors.toList());
         listCible = pickListInRange(fSource, listCible);
 
         List<String> lstActions = new ArrayList<>();
 
         if (listCible != null && !listCible.isEmpty()) {
-            int maxAttack = max;
-            if (maxAttack == -1) {
-                maxAttack = fSource.nbCyborg < listCible.size() ? fSource.nbCyborg : listCible.size();
-            }
-            
-            for (int i = 0 ; i < maxAttack ; i++) {
-                Factory fCible = listCible.get(i);
-                
-                log("Neutral:"+fCible);
-                int nb = 1;
-                logAttack("AttackNeutral:", fSource, fCible, nb);
+
+            for (Factory fCible : listCible) {
+                int nb = fCible.nbCyborg +1;
+                if (fSource.nbCyborg-nb <= MARGIN && fSource.production > 1) {
+                    continue;
+                }
+                //logAttack("AttackNeutral:", fSource, fCible, nb);
                 fSource.nbCyborg -= nb;
                 fSource.potentialCyborg -= nb;
-                fCible.nbCyborg += nb;
+                //fCible.nbCyborg += nb;
                 fCible.potentialCyborg -= nb;
                 lstActions.add(MOVE + fSource.id + " " + fCible.id + " " + nb);
             }
@@ -333,9 +305,12 @@ class Player {
         return lstActions.isEmpty() ? null : getActions(lstActions);
     }
 
+
     private static String attackEnemy(Factory fSource) {
 
-        List<Factory> listCible = MAP.values().stream().filter(o -> o.owner == -1).collect(Collectors.toList());
+        List<Factory> listCible = MAP.values().stream()
+                .filter(o -> o.owner == -1)
+                .collect(Collectors.toList());
 
         listCible = pickListInRange(fSource, listCible);
 
@@ -345,11 +320,11 @@ class Player {
 
             for (Factory fCible : listCible) {
                 int nb = calcAttack(fSource, fCible);
-                //logAttack("AttackEnemy:", fSource, fCible, nb);
+                logAttack("AttackEnemy:", fSource, fCible, nb);
                 fSource.nbCyborg -= nb;
-                fSource.potentialCyborg -= nb;
+                fSource.potentialCyborg-=nb;
                 fCible.nbCyborg += nb;
-                fCible.potentialCyborg -= nb;
+                fCible.potentialCyborg-=nb;
                 lstActions.add(MOVE + fSource.id + " " + fCible.id + " " + nb);
             }
         }
@@ -357,26 +332,35 @@ class Player {
     }
 
     private static String reinforce(Factory fSource) {
-            if( fSource.id==0) {
-                return null;
-            }
-            
-            //ici la source va systématiquement alimenter la factory 0
-            Factory fCible  = MAP.get(0);
+
+        List<Factory> listCible = MAP.values().stream()
+                .filter(o -> o.owner == 1)
+                .filter(c -> c.nbCyborg <= MARGIN)
+                .filter(p -> p.potentialCyborg < 0)
+                .filter(c -> c.production < 3)
+                .collect(Collectors.toList());
+
+        Factory fCible = pickClosest(fSource, listCible);
+
+        if (fCible != null) {
             int nb = fSource.production;
-            if (fSource.nbCyborg - nb <= MARGIN) {
+            if (fSource.nbCyborg-nb <= MARGIN) {
                 return null;
             }
             logAttack("Reinforce:", fSource, fCible, nb);
             fSource.nbCyborg -= nb;
             fCible.nbCyborg += nb;
             return MOVE + fSource.id + " " + fCible.id + " " + nb;
+        }
+        return null;
     }
 
     private static String tryToBomb(Factory fSource) {
-        List<Factory> listToBomb =
-            MAP.values().stream().filter(o -> o.owner == -1).filter(p -> p.production > 1).filter(i -> i.id != ID_FIRST_BOMB).collect(
-                Collectors.toList());
+        List<Factory> listToBomb =MAP.values().stream()
+                .filter(o -> o.owner == -1)
+                .filter(p -> p.production > 1)
+                .filter(i -> i.id != ID_FIRST_BOMB)
+                .collect(Collectors.toList());
 
         Factory fToBomb = pickClosest(fSource, listToBomb);
         if (fToBomb != null && REMAININGBOMB > 0 && calcDistance(fSource, fToBomb) <= DIST_MINI_ATTACK) {
@@ -427,12 +411,12 @@ class Player {
 
     private static int calcDistance(Factory fSource, Factory fCible) {
         Map<Integer, List<Factory>> distances = DISTANCES.get(fSource);
-        int dist = 0;
+        int dist=0;
         for (int i = 1; i < 20; i++) {
             List<Factory> lstDistances = distances.get(i);
             if (lstDistances != null && !lstDistances.isEmpty()) {
                 for (Factory iFactory : lstDistances) {
-                    if (iFactory.id == fCible.id) {
+                    if (iFactory.id==fCible.id) {
                         return i;
                     }
                 }
@@ -448,83 +432,7 @@ class Player {
     }
 
     public static void logAttack(String str, Factory fSource, Factory fCible, int nb) {
-        log(str + " " + fSource.id + " -> " + fCible.id + " : " + nb);
-    }
-
-    private static void gameLoop(Scanner in) {
-        boolean leaveMeAlone = true;
-
-        // game loop
-        while (leaveMeAlone) {
-            int entityCount = in.nextInt();
-            // displayAllFactories("BeforeUpdate");
-            for (int i = 0; i < entityCount; i++) {
-                int entityId = in.nextInt();
-                String entityType = in.next();
-                int arg1 = in.nextInt();
-                int arg2 = in.nextInt();
-                int arg3 = in.nextInt();
-                int arg4 = in.nextInt();
-                int arg5 = in.nextInt();
-
-                if (entityType.equals("FACTORY")) {
-                    updateFactory(entityId, arg1, arg2, arg3);
-                } else if (entityType.equals("TROOP")) {
-                    updateTroops(arg1, arg2, arg3, arg4, arg5);
-                } else if (entityType.equals("BOMB")) {
-                    if (arg1 == 1) {
-                        ID_FIRST_BOMB = arg3;
-                    }
-                }
-            }
-
-            // displayAllFactories("AfterUpdate");
-            String strategy = calculStrategy();
-            if (strategy != null) {
-                System.out.println(strategy);
-            } else {
-                System.out.println(WAIT);
-            }
-        }
-    }
-
-    private static void displayAllFactories(String msg) {
-        log(msg);
-        for (Factory f : MAP.values()) {
-            log(f.toString());
-        }
-    }
-
-    private static void alimenteMaps(int idf1, int idf2, int distance) {
-
-        // Effectue le get en s'assurant de la création si absent
-        Factory f1 = MAP.computeIfAbsent(idf1, k -> new Factory(idf1));
-        Factory f2 = MAP.computeIfAbsent(idf2, k -> new Factory(idf2));
-
-        // Assure les inits en même temps que l'alimentation...
-        DISTANCES.computeIfAbsent(f1, k -> new HashMap<>()).computeIfAbsent(distance, k -> new ArrayList<>(NB_FACTORY)).add(f2);
-        DISTANCES.computeIfAbsent(f2, k -> new HashMap<>()).computeIfAbsent(distance, k -> new ArrayList<>(NB_FACTORY)).add(f1);
-    }
-
-    private static void updateFactory(int idFactory, int owner, int nbCyborg, int production) {
-        Factory f = MAP.get(idFactory);
-        f.owner = owner;
-        f.nbCyborg = nbCyborg;
-        f.potentialCyborg = nbCyborg;
-        f.production = production;
-    }
-
-    private static void updateTroops(int owner, int idFactoryDep, int idFactoryArr, int nbIncomingCyborg, int timeToArrival) {
-
-        Factory fArr = MAP.get(idFactoryArr);
-
-        if (timeToArrival <= DIST_MINI_ATTACK) {
-            if (owner == fArr.owner) {
-                fArr.potentialCyborg += nbIncomingCyborg;// / timeToArrival;
-            } else {
-                fArr.potentialCyborg -= nbIncomingCyborg;// / timeToArrival;
-            }
-        }
+        log(str + " " +  fSource.id + " -> " + fCible.id + " : " + nb);
     }
 
 }
@@ -554,10 +462,14 @@ class Factory {
         return this.nbCyborg;
     }
 
+
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(this.id).append(" - owner:").append(this.owner).append(" prd:").append(this.production).append(" nbCy:").append(
-            this.nbCyborg).append(" potential:").append(this.potentialCyborg);
+        sb.append(this.id)
+                .append(" - owner:").append(this.owner)
+                .append(" prd:").append(this.production)
+                .append(" nbCy:").append(this.nbCyborg)
+                .append(" potential:").append(this.potentialCyborg);
 
         return sb.toString();
     }
