@@ -1,3 +1,15 @@
 
+# OSX System Files
 .DS_Store
-.idea
+
+# IntelliJ files
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/datasources.xml
+.idea/dataSources.ids
+
+*.iml
+
+# Java class files
+*.class
+
