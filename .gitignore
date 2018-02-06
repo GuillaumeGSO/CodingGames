@@ -3,12 +3,13 @@
 .DS_Store
 
 # IntelliJ files
+.idea
 .idea/workspace.xml
 .idea/tasks.xml
 .idea/datasources.xml
 .idea/dataSources.ids
 
-*.iml
+out
 
 # Java class files
 *.class
