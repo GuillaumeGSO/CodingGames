@@ -2,27 +2,17 @@
 <module type="JAVA_MODULE" version="4">
   <component name="NewModuleRootManager" inherit-compiler-output="true">
     <exclude-output />
-    <content url="file://$MODULE_DIR$">
+    <content url="file://$MODULE_DIR$/CodingGames-Ghost-in-the-cell">
       <sourceFolder url="file://$MODULE_DIR$/CodingGames-Ghost-in-the-cell/src" isTestSource="false" />
+    </content>
+    <content url="file://$MODULE_DIR$/Isograd-Demineur">
       <sourceFolder url="file://$MODULE_DIR$/Isograd-Demineur/src/main/java" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/Isograd-Demineur/src/main/resources" type="java-resource" />
       <sourceFolder url="file://$MODULE_DIR$/Isograd-Demineur/src/test/java" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/Isograd-Demineur/src/test/resources" type="java-test-resource" />
-      <sourceFolder url="file://$MODULE_DIR$/Isograd-Demineur/src/test" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/Isograd-Demineur/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/Isograd-Demineur/src/main/resources" type="java-resource" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="module-library" exported="" scope="TEST">
-      <library name="JUnit5">
-        <CLASSES>
-          <root url="jar://$MODULE_DIR$/lib/junit-jupiter-api-5.0.0-M4.jar!/" />
-          <root url="jar://$MODULE_DIR$/lib/opentest4j-1.0.0-M2.jar!/" />
-        </CLASSES>
-        <JAVADOC />
-        <SOURCES />
-      </library>
-    </orderEntry>
     <orderEntry type="module-library">
       <library name="JUnit4">
         <CLASSES>

@@ -61,7 +61,7 @@ public class IsoContestTest {
         IsoContest.main(null);
 
         String reponseAttendue = Files.readAllLines(pathOutput).get(0);
-        //Pour compatibilité Windows & OSX
+        //Pour compatibilit? Windows & OSX
         Assert.assertEquals(reponseAttendue, out.toString().replaceAll("\\r\\n", "").replaceAll("\\n", ""));
 
         // optionally, reset System.in to its original
