@@ -14,3 +14,15 @@ out
 # Java class files
 *.class
 
+Coders-Strike-Back/.classpath
+Coders-Strike-Back/.project
+Coders-Strike-Back/.settings
+Coders-Strike-Back/target
+Ghost-in-the-cell/.classpath
+Ghost-in-the-cell/.project
+Ghost-in-the-cell/.settings
+Ghost-in-the-cell/target
+Isograd-Demineur/.classpath
+Isograd-Demineur/.project
+Isograd-Demineur/.settings
+Isograd-Demineur/target

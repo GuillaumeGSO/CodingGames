@@ -28,7 +28,7 @@ public class IsoContest {
         sc.nextLine();
         log("L:" + L);
         while (sc.hasNextLine()) {
-            /* Lisez les données et effectuez votre traitement */
+            /* Lisez les donnees et effectuez votre traitement */
             lines.add(sc.nextLine());
         }
 
@@ -36,7 +36,7 @@ public class IsoContest {
         int indexCol = 0;
         /*
          * Vous pouvez aussi effectuer votre traitement une fois que vous avez
-         * lu toutes les données.
+         * lu toutes les donnees.
          */
         for (int l = 0; l < H; l++) {
             String str = lines.get(l);
