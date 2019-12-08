@@ -1,5 +1,4 @@
 import java.util.*;
-import java.util.Map.Entry;
 import java.io.*;
 import java.math.*;
 
@@ -9,23 +8,28 @@ import java.math.*;
  **/
 class Player {
 
+    private static final int seuilDistanceFreinage = 3000;
+
+    private static int nextCheckpointX;
+    private static int nextCheckpointY;
+    private static int nextCheckpointDist;
+    private static int nextCheckpointAngle;
+    private static int power;
+    private static int decrement = 5;
+    private static int increment = 5;
+    private static int powerMini = 30;
+    private static int seuilBigAngle = 100;
+    private static int seuilSmallAngle = 45;
+
+    // Coordonnees / distance
+    final static Map<Integer, Target> mapOfTargets = new HashMap<>();
+    final static Set<String> setOfCoords = new HashSet<>();
+
     public static void main(final String args[]) {
         final Scanner in = new Scanner(System.in);
 
-        int power = 100;
-        final int seuilDistanceFreinage = 3000;
-        final int seuilDistanceBoost = 3 * seuilDistanceFreinage;
-        final int seuilBigAngle = 120;
-        final int seuilSmallAngle = 45;
-        final int nbBoost = 2;
-        final int decrement = 5;
-        final int increment = 5;
-        final int seuil = 30;
-        int numeroBase = 1;
-
-        // Coordonnees / distance
-        final Map<Integer, Target> mapOfTargets = new HashMap<>();
-        final Set<String> setOfCoords = new HashSet<>();
+        power = 100;
+        Target lastTarget = null;
 
         // game loop
         while (true) {
@@ -34,140 +38,160 @@ class Player {
             final int y = in.nextInt();
 
             // checkpoint
-            final int nextCheckpointX = in.nextInt(); // x position of the next check point
-            final int nextCheckpointY = in.nextInt(); // y position of the next check point
-            final int nextCheckpointDist = in.nextInt(); // distance to the next checkpoint
-            final int nextCheckpointAngle = Math.abs(in.nextInt()); // angle between your pod orientation and the
-                                                                    // direction of the
-            // next
-            // Enemy
+            nextCheckpointX = in.nextInt(); // x position of the next check point
+            nextCheckpointY = in.nextInt(); // y position of the next check point
+            nextCheckpointDist = in.nextInt(); // distance to the next checkpoint
+            // angle between your pod orientation and the direction of the next Enemy
+            nextCheckpointAngle = in.nextInt();
             final int opponentX = in.nextInt();
             final int opponentY = in.nextInt();
 
             // Targets
-            final Target nextTarget = new Target(numeroBase, nextCheckpointX, nextCheckpointY);
-            final String nextCoord = nextTarget.toCoord();
+            Target nextTarget = majTargets(lastTarget, nextCheckpointX, nextCheckpointY);
 
-            // Construction de la map des points / distances : a chaque detection d'une
-            // nouvelle prochaine base
-            if (!setOfCoords.contains(nextCoord)) {
-                mapOfTargets.put(numeroBase, nextTarget);
-                // On n'initialise la distance qu'à la création
-                nextTarget.distTo = nextCheckpointDist;
-
-                nextTarget.distNext = 1000;
-
-                setOfCoords.add(nextTarget.toCoord());
-
-                // System.err.println("nouvelle : " + nextTarget);
-
-                if (mapOfTargets.get(numeroBase - 1) != null) {
-                    mapOfTargets.get(numeroBase - 1).distNext = mapOfTargets.get(numeroBase).distTo;
-                }
-                numeroBase++;
-            }
-
-            int numeroProchaineCible = calculRangProchaineCible(nextCoord, mapOfTargets);
-            Target prochaineCible = mapOfTargets.get(numeroProchaineCible);
-
-            // TODO : ne plus faire ça si tout est trouvé allComplete
-            if (numeroProchaineCible > 0) {
-
-                // Calcul de l'angle entre la source, la cible et la suivante
-                int index = numeroProchaineCible;
-                int indexAvant = index - 1;
-                int indexApres = index + 1;
-
-                if (numeroProchaineCible == 1 && mapOfTargets.size() > 1) {
-                    // System.err.println("avant: " + indexAvant);
-                    indexAvant = mapOfTargets.size();
-                    // System.err.println("avant: " + indexAvant);
-                }
-                if (numeroProchaineCible > 2 && indexApres > mapOfTargets.size()) {
-                    // System.err.println("apres: " + indexApres);
-                    indexApres = 1;
-                    // System.err.println("apres: " + indexApres);
-                }
-
-                // System.err.println("avant: " + indexAvant + " " +
-                // mapOfTargets.get(indexAvant));
-                // System.err.println("index: " + index + " " + mapOfTargets.get(index));
-                // System.err.println("apres: " + indexApres + " " +
-                // mapOfTargets.get(indexApres));
-                if (mapOfTargets.get(indexAvant) != null && mapOfTargets.get(indexApres) != null) {
-                    mapOfTargets.get(indexAvant).angleNext = calculAngle(mapOfTargets.get(indexAvant), prochaineCible,
-                            mapOfTargets.get(indexApres));
-                }
-                // System.err.println("Cible: " + prochaineCible);
-            }
-
-            // Freinage : quand on arrive proche du prochain point ou que l'angle devient
-            // trop grand
-            if (nextCheckpointDist <= seuilDistanceFreinage) {
-                // Premier freinage si à l'approche mais pas trop
-                if (power - decrement >= 2 * seuil) {
-                    power -= decrement;
-                    System.err.println("Freinage approche " + power);
-                    // Deuxième freinage si proche et prochain angle serré
-                    if (prochaineCible.angleNext != null && Math.abs(prochaineCible.angleNext) < seuilBigAngle) {
-                        if (power - 2 * decrement >= seuil) {
-                            power -= 2 * decrement;
-                            System.err.println("Freinage angle serré " + power);
-                        }
-                    }
-                    // troisième freinage si proche et prochaine distance courte
-                    if (prochaineCible.distNext < 2 * seuilDistanceFreinage) {
-                        if (power - decrement >= seuil) {
-                            power -= decrement;
-                            System.err.println("Freinage prochaine distance courte " + power);
-                        }
-                    }
-                }
-                play(nextCheckpointX, nextCheckpointY, power,
-                        "down" + " " + power + " vers: " + prochaineCible.name + "/" + prochaineCible.angleNext);
-                continue;
-            }
-            // Accélération : lorsqu'on est loin du prochain point
-            if (nextCheckpointDist > seuilDistanceFreinage && nextCheckpointAngle < seuilSmallAngle) {
-                if (power + increment <= 100) {
-                    power += increment;
-                    System.err.println("Accélération loin " + power + " " + nextCheckpointAngle);
-                }
-                // Deuxième accélération prochain angle large
-                if (prochaineCible.angleNext != null && Math.abs(prochaineCible.angleNext) > seuilBigAngle) {
-                    if (power + increment <= 100) {
-                        power += increment;
-                        System.err.println("Accélération grand angle" + power);
-                    }
-                }
-                // troisième accélération si proche et prochaine distance courte
-                if (prochaineCible.distNext > 2 * seuilDistanceFreinage) {
-                    if (power + increment <= 100) {
-                        power += increment;
-                        System.err.println("Accélération prochaine distance longue " + power);
-                    }
-                }
-                play(nextCheckpointX, nextCheckpointY, power,
-                        "up" + " " + power + " vers: " + prochaineCible.name + "/" + prochaineCible.angleNext);
-                continue;
-            }
-
-            // power = 100;
-            play(nextCheckpointX, nextCheckpointY, power,
-                    String.valueOf(power) + " vers: " + prochaineCible.name + "/" + prochaineCible.angleNext);
+            play(new Target(0, x, y), nextTarget);
+            // playSimple(nextCheckpointX, nextCheckpointY);
+            // System.err.println(nextTarget);
+            // System.err.println(new Target(0, x, y));
+            // System.err.println(nextTarget.targetApres);
+            // System.err.println("CalculAngle:" + calculAngle(nextTarget, new Target(0, x, y), nextTarget.targetApres));
+            lastTarget = nextTarget;
 
         }
     }
 
-    private static int calculRangProchaineCible(String nextCoord, Map<Integer, Target> mapOfTargets) {
-        if (mapOfTargets != null) {
-            for (Integer key : mapOfTargets.keySet()) {
-                if (nextCoord.equals(mapOfTargets.get(key).toCoord())) {
-                    return key;
+    /**
+     * A partir de la Target précédente et des coordonnées visés, détermine si il
+     * s'agit d'une Target connue ou inconnue.
+     * 
+     * @param lastTarget
+     * @param x
+     * @param y
+     * @return
+     */
+    public static Target majTargets(Target lastTarget, int x, int y) {
+
+        final String nextCoord = x + "-" + y;
+        Target result = null;
+        if (!setOfCoords.contains(nextCoord)) {
+            // Ajout d'une nouvelle Target dans les references
+            setOfCoords.add(nextCoord);
+            Target target = new Target(setOfCoords.size(), x, y);
+            mapOfTargets.put(target.name, target);
+            target.distanceNext = nextCheckpointDist;
+            target.targetAvant = lastTarget;
+            result = target;
+        } else {
+            // La Target existe déjà dans les références
+            if (lastTarget != null && lastTarget.x == x && lastTarget.y == y) {
+                // Si on continue la visée sur lastTarget, rien à faire
+                return lastTarget;
+            } else {
+                // On a changé de Target, mise à jour si possible
+                result = mapOfTargets.get(lastTarget.name + 1);
+                if (result == null) {
+                    result = mapOfTargets.get(1);
+                    result.targetAvant = lastTarget;
+                    result.targetApres = mapOfTargets.get(result.name + 1);
+                } else {
+                    result.targetApres = findPreviousTarget(result);
                 }
             }
         }
-        return 0;
+
+        if (result != null && (result.angleNext == null || result.angleNext == 0)) {
+            calculAngle(result);
+        }
+        return result;
+    }
+
+    public static Target findPreviousTarget(Target target) {
+        for (Map.Entry<Integer, Target> entry : mapOfTargets.entrySet()) {
+            Target iTarget = entry.getValue();
+
+            if (iTarget.targetAvant != null && target.name == iTarget.targetAvant.name) {
+                return entry.getValue();
+            }
+        }
+
+        return null;
+    }
+
+    public static void calculAngle(Target target) {
+        if (target != null) {
+            target.angleNext = calculAngle(target.targetApres, target, target.targetAvant);
+        }
+    }
+
+    public static void playSimple(int x, int y) {
+        play(x, y, 90, "simple");
+    }
+
+    public static void play(Target myPosition, Target prochaineCible) {
+        // Freinage : quand on arrive proche du prochain point ou que l'angle devient
+        // trop grand
+        int nextAngle = calculAngle(prochaineCible, myPosition, prochaineCible.targetApres);
+
+        if (nextCheckpointDist <= seuilDistanceFreinage) {
+            // Premier freinage si à l'approche mais pas trop
+            if (power - decrement >= powerMini) {
+                power -= decrement;
+                // System.err.println("Freinage approche " + power);
+                // Deuxième freinage si proche et prochain angle serré
+                if (Math.abs(nextAngle) < seuilBigAngle) {
+                    if (power - decrement >= powerMini) {
+                        power -= decrement;
+                        // System.err.println("Freinage angle serré " + power);
+                    }
+                }
+                // troisième freinage si proche et prochaine distance courte
+                if (prochaineCible.distanceNext < seuilDistanceFreinage) {
+                    if (power - decrement >= powerMini) {
+                        power -= decrement;
+                        // System.err.println("Freinage prochaine distance courte " + power);
+                    }
+                }
+            }
+            String infos = "down" + " " + power + " vers: " + prochaineCible.name + " / " + prochaineCible.angleNext
+                    + "°";
+            infos = "NextAngle:" + nextAngle;
+            play(nextCheckpointX, nextCheckpointY, power, infos);
+            return;
+        }
+
+        // Accélération : lorsqu'on est loin du prochain point
+        if (nextCheckpointDist > seuilDistanceFreinage && Math.abs(nextAngle) > seuilSmallAngle) {
+            if (power + increment <= 100) {
+                power += increment;
+                // System.err.println("Accélération loin " + power + " " + nextCheckpointAngle);
+            }
+            // Deuxième accélération prochain angle large
+            if (Math.abs(nextAngle) > seuilBigAngle) {
+                if (power + increment <= 100) {
+                    power += increment;
+                    // System.err.println("Accélération grand angle" + power);
+                }
+            }
+            // troisième accélération si proche et prochaine distance courte
+            if (prochaineCible.distanceNext > 2 * seuilDistanceFreinage) {
+                if (power + increment <= 100) {
+                    power += increment;
+                    // System.err.println("Accélération prochaine distance longue " + power);
+                }
+            }
+
+            String infos = "up" + " " + power + " vers: " + prochaineCible.name + " / " + prochaineCible.angleNext
+                    + "°";
+            infos = "NextAngle:" + nextAngle;
+            play(nextCheckpointX, nextCheckpointY, power, infos);
+            return;
+        }
+
+        power = 100;
+        String infos = String.valueOf(power) + " vers: " + prochaineCible.name + " / " + prochaineCible.angleNext + "°";
+        infos = "NextAngle:" + nextAngle;
+        play(nextCheckpointX, nextCheckpointY, power, infos);
+
     }
 
     public static void play(final int nextCheckpointX, final int nextCheckpointY, final int power,
@@ -182,15 +206,22 @@ class Player {
         // System.err.println("CalculAngle:" + pointC);
         final Double distAB = calculDistance(pointA, pointB);
         final Double distAC = calculDistance(pointA, pointC);
-        Double result = Math.toDegrees(Math.acos(calculProduitScalaire(pointA, pointB, pointC) / (distAB * distAC)));
-        // System.err.println("Angle:" + result);
-        return result.intValue();
+        if (distAB != null && distAC != null) {
+            Double result = Math
+                    .toDegrees(Math.acos(calculProduitScalaire(pointA, pointB, pointC) / (distAB * distAC)));
+            // System.err.println("Angle:" + result);
+            return result.intValue();
+        }
+        return 0;
     }
 
     public static Double calculDistance(final Target point1, final Target point2) {
-        final Double distX = Double.valueOf(point2.x - point1.x);
-        final Double distY = Double.valueOf(point2.y - point1.y);
-        return Math.sqrt(distX * distX + distY * distY);
+        if (point1 != null && point2 != null) {
+            final Double distX = Double.valueOf(point2.x - point1.x);
+            final Double distY = Double.valueOf(point2.y - point1.y);
+            return Math.sqrt(distX * distX + distY * distY);
+        }
+        return null;
     }
 
     /**
@@ -216,9 +247,10 @@ class Target {
     public int name;
     public int x;
     public int y;
-    public int distTo;
-    public int distNext;
     public Integer angleNext;
+    public int distanceNext;
+    public Target targetAvant;
+    public Target targetApres;
 
     public Target(final int name, final int x, final int y) {
         this.name = name;
@@ -231,12 +263,13 @@ class Target {
     }
 
     public String toString() {
-        return "Name: " + name + " x:" + this.x + " y:" + this.y + " to:" + this.distTo + " next:" + this.distNext
-                + " angle: " + angleNext;
-    }
-
-    public boolean isComplete() {
-        return x > 0 && y > 0 && distTo > 0 && distNext > 0 && angleNext != null;
+        StringBuilder sb = new StringBuilder();
+        sb.append(name);
+        sb.append(" x:" + this.x + " y:" + this.y);
+        sb.append(" angle:" + angleNext);
+        sb.append(" av:" + (this.targetAvant != null ? this.targetAvant.name : "-"));
+        sb.append(" ap:" + (this.targetApres != null ? this.targetApres.name : "-"));
+        return sb.toString();
     }
 
 }
