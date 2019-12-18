@@ -8,7 +8,7 @@ import java.math.*;
  **/
 class Player {
 
-    private static final int seuilDistanceFreinage = 3000;
+    private static final int seuilDistanceFreinage = 1500;
 
     private static int nextCheckpointX;
     private static int nextCheckpointY;
@@ -20,6 +20,8 @@ class Player {
     private static int powerMini = 30;
     private static int seuilBigAngle = 100;
     private static int seuilSmallAngle = 45;
+    private static boolean firstTurn = true;
+    private static boolean boostLeft = true;
 
     // Coordonnees / distance
     final static Map<Integer, Target> mapOfTargets = new HashMap<>();
@@ -49,85 +51,87 @@ class Player {
             // Targets
             Target nextTarget = majTargets(lastTarget, nextCheckpointX, nextCheckpointY);
 
-            play(new Target(0, x, y), nextTarget);
-            // playSimple(nextCheckpointX, nextCheckpointY);
-            // System.err.println(nextTarget);
-            // System.err.println(new Target(0, x, y));
-            // System.err.println(nextTarget.targetApres);
-            // System.err.println("CalculAngle:" + calculAngle(nextTarget, new Target(0, x, y), nextTarget.targetApres));
-            lastTarget = nextTarget;
-
-        }
-    }
-
-    /**
-     * A partir de la Target précédente et des coordonnées visés, détermine si il
-     * s'agit d'une Target connue ou inconnue.
-     * 
-     * @param lastTarget
-     * @param x
-     * @param y
-     * @return
-     */
-    public static Target majTargets(Target lastTarget, int x, int y) {
-
-        final String nextCoord = x + "-" + y;
-        Target result = null;
-        if (!setOfCoords.contains(nextCoord)) {
-            // Ajout d'une nouvelle Target dans les references
-            setOfCoords.add(nextCoord);
-            Target target = new Target(setOfCoords.size(), x, y);
-            mapOfTargets.put(target.name, target);
-            target.distanceNext = nextCheckpointDist;
-            target.targetAvant = lastTarget;
-            result = target;
-        } else {
-            // La Target existe déjà dans les références
-            if (lastTarget != null && lastTarget.x == x && lastTarget.y == y) {
-                // Si on continue la visée sur lastTarget, rien à faire
-                return lastTarget;
+            if (firstTurn) {
+                // play_constante_power(nextCheckpointX, nextCheckpointY, 90);
+                // play_safe(nextCheckpointX, nextCheckpointY);
+                play_distance(nextCheckpointX, nextCheckpointY, nextTarget);
             } else {
-                // On a changé de Target, mise à jour si possible
-                result = mapOfTargets.get(lastTarget.name + 1);
-                if (result == null) {
-                    result = mapOfTargets.get(1);
-                    result.targetAvant = lastTarget;
-                    result.targetApres = mapOfTargets.get(result.name + 1);
-                } else {
-                    result.targetApres = findPreviousTarget(result);
-                }
+                play_angles(new Target(0, x, y), nextTarget);
+                // play_premierVersion(new Target(0, x, y), nextTarget);
+            }
+
+            lastTarget = nextTarget;
+        }
+    }
+
+    public static void play_angles(Target myPosition, Target nextTarget) {
+
+        int nextAngle = calculAngle(nextTarget, myPosition, nextTarget.targetApres);
+
+        // Boost
+        if (boostLeft && power > 80 && nextAngle > 120 && nextTarget.equals(targetLaPlusLoin())
+                && nextCheckpointDist > seuilDistanceFreinage) {
+            System.out.println(nextCheckpointX + " " + nextCheckpointY + " BOOST BOOST");
+            boostLeft = false;
+            return;
+        }
+
+        // Accélération
+        if (nextCheckpointDist > seuilDistanceFreinage) {
+            power = powerMini * nextCheckpointDist / seuilDistanceFreinage;
+            if (power > 100) {
+                power = 100;
+            }
+            play(nextCheckpointX, nextCheckpointY, power, "power:" + power + " nextDistance:" + nextCheckpointDist);
+            return;
+        }
+
+        if (nextCheckpointDist < seuilDistanceFreinage) {
+            if (power - decrement >= powerMini) {
+                power -= decrement;
+            }
+            // Freinage proportionnel à l'angle reel
+            power = 100 * nextAngle / 180;
+            // conservation d'une vitesse mini
+            if (power < powerMini) {
+                power = powerMini;
             }
         }
-
-        if (result != null && (result.angleNext == null || result.angleNext == 0)) {
-            calculAngle(result);
-        }
-        return result;
+        play(nextCheckpointX, nextCheckpointY, power, "power:" + power + " nextAngle:" + nextAngle);
     }
 
-    public static Target findPreviousTarget(Target target) {
-        for (Map.Entry<Integer, Target> entry : mapOfTargets.entrySet()) {
-            Target iTarget = entry.getValue();
+    public static void play_constante_power(int x, int y, int power) {
+        play(x, y, power, "constantPower:" + power);
+    }
 
-            if (iTarget.targetAvant != null && target.name == iTarget.targetAvant.name) {
-                return entry.getValue();
+    public static void play_distance(int x, int y, Target nextTarget) {
+
+        // System.err.println(nextTarget.distanceNext);
+        int power = 100 * nextCheckpointDist / nextTarget.distanceNext;
+
+        if (power < 50) {
+            power = 50;
+        }
+        if (power > 100) {
+            power = 100;
+        }
+        play(x, y, power, "PlayDistance:" + power);
+    }
+
+    public static void play_safe(int x, int y) {
+
+        if (nextCheckpointDist < 2 * seuilDistanceFreinage) {
+            int power = 30 * nextCheckpointDist / (2 * seuilDistanceFreinage);
+            if (power < powerMini) {
+                power = powerMini;
             }
+            play(x, y, power, "PlaySafe:" + 30 * nextCheckpointDist / seuilDistanceFreinage / 2);
+            return;
         }
-
-        return null;
+        play_constante_power(x, y, 95);
     }
 
-    public static void calculAngle(Target target) {
-        if (target != null) {
-            target.angleNext = calculAngle(target.targetApres, target, target.targetAvant);
-        }
-    }
-
-    public static void playSimple(int x, int y) {
-        play(x, y, 90, "simple");
-    }
-
-    public static void play(Target myPosition, Target prochaineCible) {
+    public static void play_premierVersion(Target myPosition, Target prochaineCible) {
         // Freinage : quand on arrive proche du prochain point ou que l'angle devient
         // trop grand
         int nextAngle = calculAngle(prochaineCible, myPosition, prochaineCible.targetApres);
@@ -199,6 +203,73 @@ class Player {
         System.out.println((int) (nextCheckpointX) + " " + (int) (nextCheckpointY) + " " + (int) power + " " + leReste);
     }
 
+    public static Target targetLaPlusLoin() {
+        return mapOfTargets.values().stream().max(Comparator.comparing(Target::getDistanceNext)).orElse(null);
+    }
+
+    /**
+     * A partir de la Target précédente et des coordonnées visés, détermine si il
+     * s'agit d'une Target connue ou inconnue.
+     * 
+     * @param lastTarget
+     * @param x
+     * @param y
+     * @return
+     */
+    public static Target majTargets(Target lastTarget, int x, int y) {
+
+        final String nextCoord = x + "-" + y;
+        Target result = null;
+        if (!setOfCoords.contains(nextCoord)) {
+            // Ajout d'une nouvelle Target dans les references
+            setOfCoords.add(nextCoord);
+            Target target = new Target(setOfCoords.size(), x, y);
+            mapOfTargets.put(target.name, target);
+            target.distanceNext = nextCheckpointDist;
+            target.targetAvant = lastTarget;
+            result = target;
+        } else {
+            // La Target existe déjà dans les références
+            if (lastTarget != null && lastTarget.x == x && lastTarget.y == y) {
+                // Si on continue la visée sur lastTarget, rien à faire
+                return lastTarget;
+            } else {
+                // On a changé de Target, mise à jour si possible
+                result = mapOfTargets.get(lastTarget.name + 1);
+                if (result == null) {
+                    result = mapOfTargets.get(1);
+                    result.targetAvant = lastTarget;
+                    result.targetApres = mapOfTargets.get(result.name + 1);
+                } else {
+                    firstTurn = false;
+                    result.targetApres = findPreviousTarget(result);
+                }
+            }
+        }
+
+        if (result != null && (result.angleNext == null || result.angleNext == 0)) {
+            calculAngle(result);
+        }
+        return result;
+    }
+
+    public static Target findPreviousTarget(Target target) {
+        for (Map.Entry<Integer, Target> entry : mapOfTargets.entrySet()) {
+            Target iTarget = entry.getValue();
+
+            if (iTarget.targetAvant != null && target.name == iTarget.targetAvant.name) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    public static void calculAngle(Target target) {
+        if (target != null) {
+            target.angleNext = calculAngle(target.targetApres, target, target.targetAvant);
+        }
+    }
+
     public static int calculAngle(final Target pointA, final Target pointB, final Target pointC) {
 
         // System.err.println("CalculAngle:" + pointA);
@@ -256,6 +327,10 @@ class Target {
         this.name = name;
         this.x = x;
         this.y = y;
+    }
+
+    public int getDistanceNext() {
+        return this.distanceNext;
     }
 
     public String toCoord() {
